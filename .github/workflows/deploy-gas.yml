@@ -1,0 +1,35 @@
+name: Deploy to Google Apps Script
+
+on:
+  push:
+    branches:
+      - claude/gemini-todo-app-67RVX
+    paths:
+      - 'todo-gas/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Write clasp credentials
+        run: echo '${{ secrets.CLASP_TOKEN }}' > ~/.clasprc.json
+
+      - name: Write .clasp.json
+        run: |
+          echo '{"scriptId":"${{ secrets.SCRIPT_ID }}","rootDir":"todo-gas"}' \
+            > todo-gas/.clasp.json
+
+      - name: Push to GAS
+        run: clasp push --force
+        working-directory: todo-gas
