@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gemini ToDo</title>
+  <style>
+    /* ── Reset & Variables ── */
+    :root {
+      --primary:       #4A90E2;
+      --primary-light: #EBF3FD;
+      --gemini:        #8B5CF6;
+      --gemini-light:  #F3EFFE;
+      --success:       #22C55E;
+      --danger:        #EF4444;
+      --warn:          #F59E0B;
+      --text:          #111827;
+      --text-muted:    #6B7280;
+      --bg:            #F3F4F6;
+      --card:          #FFFFFF;
+      --border:        #E5E7EB;
+      --shadow:        0 1px 4px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.04);
+      --radius:        12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--card);
+      padding: 14px 20px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .header-title { font-size: 20px; font-weight: 800; letter-spacing: -.3px; }
+    .header-badge {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg);
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      background: var(--card);
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      flex: 1;
+      text-align: center;
+      padding: 10px 0;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color .15s, border-color .15s;
+      user-select: none;
+    }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 700; }
+
+    /* ── Content ── */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 12px 16px 200px;
+    }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin: 18px 0 6px;
+    }
+    .section-label:first-child { margin-top: 4px; }
+
+    /* ── Todo card ── */
+    .todo-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 6px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      transition: opacity .25s, transform .25s;
+      animation: slideIn .2s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .todo-card.completed { opacity: .55; }
+
+    /* Checkbox */
+    .cb {
+      width: 22px; height: 22px;
+      border: 2px solid var(--border);
+      border-radius: 50%;
+      flex-shrink: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .15s, border-color .15s;
+      margin-top: 1px;
+    }
+    .cb:hover { border-color: var(--success); }
+    .cb.done { background: var(--success); border-color: var(--success); }
+    .cb.done::after { content: '✓'; color: #fff; font-size: 12px; font-weight: 800; }
+    .cb.high-pri { border-color: var(--danger); }
+    .cb.high-pri.done { background: var(--danger); border-color: var(--danger); }
+
+    /* Content area */
+    .tc { flex: 1; min-width: 0; }
+    .tc-title {
+      font-size: 15px; font-weight: 500; line-height: 1.4;
+      word-break: break-word;
+    }
+    .todo-card.completed .tc-title {
+      text-decoration: line-through; color: var(--text-muted);
+    }
+    .tc-notes {
+      font-size: 13px; color: var(--text-muted);
+      margin-top: 3px; line-height: 1.4; word-break: break-word;
+    }
+    .tc-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+
+    /* Badges */
+    .badge {
+      font-size: 11px; font-weight: 600;
+      padding: 2px 7px; border-radius: 10px;
+      white-space: nowrap;
+    }
+    .b-high     { background: #FEE2E2; color: #B91C1C; }
+    .b-low      { background: #DCFCE7; color: #15803D; }
+    .b-category { background: var(--primary-light); color: var(--primary); }
+    .b-due      { background: var(--bg); color: var(--text-muted); }
+    .b-due.overdue { background: #FEE2E2; color: #B91C1C; }
+    .b-due.today   { background: #FEF3C7; color: #B45309; }
+
+    /* Delete button */
+    .del-btn {
+      width: 28px; height: 28px;
+      border: none; background: none;
+      color: var(--text-muted);
+      font-size: 16px; cursor: pointer;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0;
+      transition: opacity .15s, background .15s, color .15s;
+      flex-shrink: 0;
+    }
+    .todo-card:hover .del-btn { opacity: 1; }
+    .del-btn:hover { background: #FEE2E2; color: var(--danger); }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 64px 20px;
+      color: var(--text-muted);
+    }
+    .empty-icon { font-size: 52px; margin-bottom: 16px; line-height: 1; }
+    .empty p { font-size: 14px; line-height: 1.7; }
+
+    /* ── Bottom panel ── */
+    .bottom-panel {
+      position: fixed;
+      bottom: 0;
+      left: 50%; transform: translateX(-50%);
+      width: 100%; max-width: 480px;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      padding: 10px 14px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+      z-index: 100;
+    }
+
+    /* Gemini preview bubble */
+    .gemini-bubble {
+      display: none;
+      background: var(--gemini-light);
+      border: 1.5px solid #DDD6FE;
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      animation: slideIn .2s ease;
+    }
+    .gemini-bubble.show { display: block; }
+    .gemini-head {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 700;
+      color: var(--gemini); margin-bottom: 8px;
+    }
+    .gemini-card {
+      background: var(--card);
+      border-radius: 8px; padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    .gemini-card-title { font-size: 14px; font-weight: 600; margin-bottom: 5px; }
+    .gemini-card-notes { font-size: 12px; color: var(--text-muted); margin-bottom: 5px; }
+    .gemini-actions { display: flex; gap: 8px; }
+    .btn-cancel {
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: 8px; padding: 7px 16px;
+      font-size: 13px; cursor: pointer;
+      color: var(--text-muted); font-weight: 600;
+    }
+    .btn-confirm {
+      flex: 1;
+      background: var(--gemini); color: #fff;
+      border: none; border-radius: 8px; padding: 8px;
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn-confirm:hover { opacity: .88; }
+    .btn-confirm:disabled { opacity: .6; cursor: default; }
+
+    /* Input row */
+    .input-row { display: flex; gap: 8px; align-items: center; }
+    .todo-input {
+      flex: 1;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 13px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      color: var(--text);
+      background: var(--bg);
+      transition: border-color .15s, background .15s;
+    }
+    .todo-input:focus { border-color: var(--primary); background: #fff; }
+    .todo-input::placeholder { color: #9CA3AF; }
+
+    .icon-btn {
+      width: 44px; height: 44px;
+      border: none; border-radius: 10px;
+      font-size: 20px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: opacity .15s;
+    }
+    .icon-btn:hover { opacity: .85; }
+    .icon-btn:disabled { opacity: .6; cursor: default; }
+    .btn-add    { background: var(--primary); color: #fff; }
+    .btn-gemini { background: var(--gemini);  color: #fff; }
+
+    /* Spinner */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2.5px solid rgba(255,255,255,.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Toast */
+    .toast {
+      position: fixed; top: 16px;
+      left: 50%; transform: translateX(-50%) translateY(-80px);
+      background: rgba(17,24,39,.9);
+      color: #fff; padding: 9px 20px;
+      border-radius: 20px; font-size: 13px;
+      z-index: 9999;
+      transition: transform .28s cubic-bezier(.4,0,.2,1);
+      white-space: nowrap; pointer-events: none;
+      backdrop-filter: blur(4px);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    @media (min-width: 481px) {
+      body { box-shadow: 0 0 50px rgba(0,0,0,.12); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-title">✅ ToDo</div>
+  <div class="header-badge" id="header-badge">0件</div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" data-f="all"       onclick="setFilter('all')">すべて</div>
+  <div class="tab"        data-f="active"    onclick="setFilter('active')">未完了</div>
+  <div class="tab"        data-f="completed" onclick="setFilter('completed')">完了済み</div>
+</div>
+
+<!-- Todo list -->
+<div class="content" id="list"></div>
+
+<!-- Bottom panel -->
+<div class="bottom-panel">
+
+  <!-- Gemini preview bubble -->
+  <div class="gemini-bubble" id="gemini-bubble">
+    <div class="gemini-head">✨ Geminiが解析しました</div>
+    <div class="gemini-card" id="gemini-card"></div>
+    <div class="gemini-actions">
+      <button class="btn-cancel"  onclick="cancelGemini()">キャンセル</button>
+      <button class="btn-confirm" id="btn-confirm" onclick="confirmGemini()">この内容で追加</button>
+    </div>
+  </div>
+
+  <!-- Input row -->
+  <div class="input-row">
+    <input class="todo-input" id="todo-input"
+           placeholder="タスクを入力… (Enterで追加)"
+           onkeydown="onKey(event)" autocomplete="off">
+    <button class="icon-btn btn-gemini" id="btn-gemini"
+            onclick="handleGemini()" title="Geminiで解析して追加">✨</button>
+    <button class="icon-btn btn-add"    id="btn-add"
+            onclick="handleAdd()"    title="追加">＋</button>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════
+//  State
+// ══════════════════════════════════════
+let todos        = [];
+let filter       = 'all';
+let geminiResult = null;
+
+// ══════════════════════════════════════
+//  GAS server bridge
+// ══════════════════════════════════════
+function call(fn, ...args) {
+  return new Promise((resolve, reject) => {
+    let runner = google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(e => reject(new Error(e.message || String(e))));
+    runner[fn](...args);
+  });
+}
+
+// ══════════════════════════════════════
+//  Boot
+// ══════════════════════════════════════
+async function init() {
+  try {
+    todos = await call('getTodos');
+    render();
+  } catch (e) {
+    toast('読み込みに失敗しました: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════
+//  Render
+// ══════════════════════════════════════
+function render() {
+  const list     = document.getElementById('list');
+  const filtered = getFiltered();
+  const active   = todos.filter(t => !t.completed).length;
+  document.getElementById('header-badge').textContent = active + '件';
+
+  if (!filtered.length) {
+    const msgs = {
+      all:       ['📝', 'タスクがまだありません<br>下のボックスに入力して追加しましょう'],
+      active:    ['🎉', '未完了のタスクはありません！<br>お疲れ様でした'],
+      completed: ['📋', 'まだ完了したタスクはありません'],
+    };
+    const [icon, msg] = msgs[filter];
+    list.innerHTML = `<div class="empty"><div class="empty-icon">${icon}</div><p>${msg}</p></div>`;
+    return;
+  }
+
+  const today    = todayStr();
+  const groups   = { overdue: [], today: [], upcoming: [], none: [] };
+  filtered.forEach(t => {
+    if (!t.dueDate)          groups.none.push(t);
+    else if (t.dueDate < today && !t.completed) groups.overdue.push(t);
+    else if (t.dueDate === today)               groups.today.push(t);
+    else if (t.dueDate > today)                 groups.upcoming.push(t);
+    else                                        groups.none.push(t);
+  });
+
+  const sections = [
+    { key: 'overdue',  label: '⚠️ 期限切れ' },
+    { key: 'today',    label: '📅 今日' },
+    { key: 'upcoming', label: '🗓 予定' },
+    { key: 'none',     label: null },
+  ];
+  const hasGrouped = groups.overdue.length || groups.today.length || groups.upcoming.length;
+
+  let html = '';
+  sections.forEach(({ key, label }) => {
+    const items = groups[key];
+    if (!items.length) return;
+    if (label && (key !== 'none' || hasGrouped))
+      html += `<div class="section-label">${label}</div>`;
+    html += items.map(renderCard).join('');
+  });
+  list.innerHTML = html;
+}
+
+function renderCard(t) {
+  const today = todayStr();
+  const overdue = t.dueDate && t.dueDate < today && !t.completed;
+  const isToday = t.dueDate === today;
+  const highPri = t.priority === 'high';
+  const doneClass = t.completed ? 'completed' : '';
+  const cbDone  = t.completed ? 'done' : '';
+  const cbHigh  = highPri     ? 'high-pri' : '';
+
+  const priTag = t.priority === 'high' ? `<span class="badge b-high">重要</span>`
+               : t.priority === 'low'  ? `<span class="badge b-low">低</span>` : '';
+  const catTag = t.category
+    ? `<span class="badge b-category">${esc(t.category)}</span>` : '';
+  const dueTag = t.dueDate
+    ? `<span class="badge b-due ${overdue ? 'overdue' : isToday ? 'today' : ''}">${fmtDate(t.dueDate)}</span>` : '';
+
+  return `<div class="todo-card ${doneClass}" id="card-${t.id}">
+    <div class="cb ${cbDone} ${cbHigh}" onclick="toggle('${t.id}')"></div>
+    <div class="tc">
+      <div class="tc-title">${esc(t.title)}</div>
+      ${t.notes ? `<div class="tc-notes">${esc(t.notes)}</div>` : ''}
+      <div class="tc-meta">${priTag}${catTag}${dueTag}</div>
+    </div>
+    <button class="del-btn" onclick="remove('${t.id}')" title="削除">✕</button>
+  </div>`;
+}
+
+// ══════════════════════════════════════
+//  Filters
+// ══════════════════════════════════════
+function getFiltered() {
+  if (filter === 'active')    return todos.filter(t => !t.completed);
+  if (filter === 'completed') return todos.filter(t =>  t.completed);
+  return todos;
+}
+function setFilter(f) {
+  filter = f;
+  document.querySelectorAll('.tab').forEach(el =>
+    el.classList.toggle('active', el.dataset.f === f));
+  render();
+}
+
+// ══════════════════════════════════════
+//  Actions
+// ══════════════════════════════════════
+async function handleAdd() {
+  const inp  = document.getElementById('todo-input');
+  const text = inp.value.trim();
+  if (!text) return;
+
+  setBusy('btn-add', true);
+  try {
+    const t = await call('addTodo', { title: text });
+    todos.unshift(t);
+    inp.value = '';
+    render();
+    toast('追加しました');
+  } catch (e) {
+    toast('追加に失敗しました: ' + e.message);
+  } finally {
+    setBusy('btn-add', false, '＋');
+  }
+}
+
+async function handleGemini() {
+  const inp  = document.getElementById('todo-input');
+  const text = inp.value.trim();
+  if (!text) { toast('テキストを入力してください'); return; }
+
+  setBusy('btn-gemini', true);
+  try {
+    geminiResult = await call('parseWithGemini', text);
+    showGeminiPreview(geminiResult);
+  } catch (e) {
+    toast('Gemini解析エラー: ' + e.message);
+  } finally {
+    setBusy('btn-gemini', false, '✨');
+  }
+}
+
+function showGeminiPreview(t) {
+  const priTag = t.priority === 'high' ? `<span class="badge b-high">重要</span>`
+               : t.priority === 'low'  ? `<span class="badge b-low">低</span>` : '';
+  const catTag = t.category ? `<span class="badge b-category">${esc(t.category)}</span>` : '';
+  const dueTag = t.dueDate  ? `<span class="badge b-due">${fmtDate(t.dueDate)}</span>`   : '';
+
+  document.getElementById('gemini-card').innerHTML = `
+    <div class="gemini-card-title">${esc(t.title)}</div>
+    ${t.notes ? `<div class="gemini-card-notes">${esc(t.notes)}</div>` : ''}
+    <div class="tc-meta">${priTag}${catTag}${dueTag}</div>`;
+  document.getElementById('gemini-bubble').classList.add('show');
+}
+
+async function confirmGemini() {
+  if (!geminiResult) return;
+  const btn = document.getElementById('btn-confirm');
+  btn.disabled = true; btn.textContent = '追加中…';
+  try {
+    const t = await call('addTodo', geminiResult);
+    todos.unshift(t);
+    document.getElementById('todo-input').value = '';
+    cancelGemini();
+    render();
+    toast('✨ Geminiで追加しました');
+  } catch (e) {
+    toast('追加に失敗しました: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'この内容で追加';
+  }
+}
+
+function cancelGemini() {
+  document.getElementById('gemini-bubble').classList.remove('show');
+  geminiResult = null;
+}
+
+async function toggle(id) {
+  const idx = todos.findIndex(t => t.id === id);
+  if (idx < 0) return;
+  todos[idx].completed = !todos[idx].completed;
+  render();
+  try {
+    await call('toggleTodo', id);
+  } catch (e) {
+    todos[idx].completed = !todos[idx].completed;
+    render();
+    toast('更新に失敗しました');
+  }
+}
+
+async function remove(id) {
+  const idx = todos.findIndex(t => t.id === id);
+  if (idx < 0) return;
+  const removed = todos.splice(idx, 1)[0];
+  render();
+  try {
+    await call('deleteTodo', id);
+    toast('削除しました');
+  } catch (e) {
+    todos.splice(idx, 0, removed);
+    render();
+    toast('削除に失敗しました');
+  }
+}
+
+// ══════════════════════════════════════
+//  Helpers
+// ══════════════════════════════════════
+function onKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAdd(); }
+}
+
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+function fmtDate(s) {
+  if (!s) return '';
+  const d    = new Date(s + 'T00:00:00');
+  const base = new Date(); base.setHours(0,0,0,0);
+  const diff = Math.round((d - base) / 86400000);
+  if (diff ===  0) return '今日';
+  if (diff ===  1) return '明日';
+  if (diff === -1) return '昨日';
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+function esc(s) {
+  return String(s || '').replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function toast(msg, ms = 2600) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), ms);
+}
+
+function setBusy(id, busy, idleContent) {
+  const el = document.getElementById(id);
+  el.disabled = busy;
+  if (busy) {
+    el.innerHTML = '<div class="spinner"></div>';
+  } else if (idleContent) {
+    el.innerHTML = idleContent;
+  }
+}
+
+// Boot
+init();
+</script>
+</body>
+</html>
